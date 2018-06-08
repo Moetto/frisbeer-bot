@@ -1,8 +1,8 @@
 from typing import Iterable
 
-from sqlalchemy import create_engine, Column, Integer, String, DateTime
+from sqlalchemy import create_engine, Column, Integer, String, DateTime, ForeignKey
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, relationship
 
 
 class Database:
@@ -17,6 +17,7 @@ class Database:
         frisbeer_nick = Column(String, nullable=False)
         telegram_username = Column(String, unique=True, nullable=True)
         telegram_user_id = Column(Integer, unique=True, nullable=False)
+        games = relationship("GameOwner", back_populates="owner")
 
         def __repr__(self):
             return "{} - {}".format(self.telegram_username if self.telegram_username else self.telegram_user_id,
@@ -34,6 +35,13 @@ class Database:
         __tablename__ = 'notification_channel'
         id = Column(Integer, primary_key=True)
         channel_id = Column(Integer, unique=True)
+
+    class GameOwner(Base):
+        __tablename__ = 'gameowner'
+
+        id = Column(Integer, primary_key=True)
+        owner_id = Column(Integer, ForeignKey('users.id'))
+        owner = relationship("User", back_populates="games")
 
     Base.metadata.create_all(engine)
     Session = sessionmaker(bind=engine)
@@ -65,6 +73,12 @@ class Database:
     @staticmethod
     def user_by_telegram_username(username: str) -> User:
         return Database.session.query(Database.User).filter(Database.User.telegram_username == username).first()
+
+    @staticmethod
+    def save_game_owner(owner: User, game_id: int):
+        game = Database.GameOwner(id=game_id, owner_id=owner.id)
+        Database.session.add(game)
+        Database.session.commit()
 
     @staticmethod
     def register_channel(channel_id: int) -> NotificationChannel:

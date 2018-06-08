@@ -176,6 +176,13 @@ class CreateGameAction(GameAction, PhasedAction):
             name = update.message.text.split(" ", 1)[1]
         except IndexError:
             name = self._create_name()
+
+        player = get_player(player_cache, update)
+
+        if not player:
+            update.message.reply_text(Texts.PLEASE_REGISTER)
+            return
+
         keyboard = Keyboard()
         self.callback_data = name
         keyboard.add(Texts.CREATE_GAME, ActionBuilder.to_callback_data(self), 1, 1)
@@ -185,6 +192,12 @@ class CreateGameAction(GameAction, PhasedAction):
     def run_callback(self, bot: Bot, update: Update, game_cache: GameCache, player_cache: PlayerCache,
                      location_cache: LocationCache):
         message = update.callback_query.message
+
+        player = get_player(player_cache, update)
+        if not player:
+            update.message.reply_text(Texts.PLEASE_REGISTER)
+            return
+
         old_action = ActionBuilder.copy_action(self)
         old_phase = self.get_phase()
         if old_phase == 1:
@@ -216,12 +229,16 @@ class CreateGameAction(GameAction, PhasedAction):
         elif old_phase == 6:
             created_game = Game.create(game.name, game.date, game.location)
             game_cache.update_instance(created_game)
+            user = Database.user_by_telegram_id(update.effective_user.id)
+            Database.save_game_owner(user, created_game.id)
             action = ActionBuilder.create(ActionTypes.INSPECT_GAME)
             action.game_id = created_game.id
             inspect_action = ActionBuilder.create(ActionTypes.INSPECT_GAME)
             inspect_action.game_id = created_game.id
-            self._send_notification(bot, "A new upcoming game {} {} @{}. Join here {}"
-                                    .format(created_game.name, created_game.date.strftime("%a %d. %b %H:%M"),
+            self._send_notification(bot, "{} created a new game {} {} @ {}. Join here {}"
+                                    .format(user.frisbeer_nick,
+                                            created_game.name,
+                                            created_game.date.strftime("%a %d. %b %H:%M"),
                                             created_game.location.name,
                                             ActionBuilder.to_start_link(bot, inspect_action))
                                     )
