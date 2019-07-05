@@ -1,11 +1,12 @@
 import logging
+
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.DEBUG)
+
 import click
 
 from action import ActionBuilder
 from api import API, APIError
 from frisbeerbot import FrisbeerBot
-
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
 
 @click.command()

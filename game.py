@@ -82,6 +82,9 @@ class Game(Cacheable):
     def create_teams(self):
         return self.from_json(API.create_teams(self.id))
 
+    def set_location(self, location_id: int):
+        return self.from_json(API.set_location(self.id, location_id))
+
     def __str__(self):
         return "{}".format(self.name)
 

@@ -13,7 +13,11 @@ class Keyboard:
     def __init__(self):
         self._content = {}
 
-    def add(self, text: str, callback_data: str, row: int, col: int) -> None:
+    def add(self, text: str, callback_data: str, row: int = -1, col: int = -1) -> None:
+        if row == -1:
+            row = len(self._content)
+        if col == -1:
+            col = len(self._content.get(row, {}))
         self._content.setdefault(row, {})[col] = KeyboardButton(text, callback_data)
 
     def add_button(self, button: KeyboardButton, row: int, col: int) -> None:

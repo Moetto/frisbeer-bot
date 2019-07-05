@@ -1,3 +1,4 @@
+import logging
 from typing import Iterable
 
 from sqlalchemy import create_engine, Column, Integer, String, DateTime, ForeignKey
@@ -75,10 +76,19 @@ class Database:
         return Database.session.query(Database.User).filter(Database.User.telegram_username == username).first()
 
     @staticmethod
+    def user_by_bot_id(identifier: int) -> User:
+        return Database.session.query(Database.User).filter(Database.User.id == identifier).first()
+
+    @staticmethod
     def save_game_owner(owner: User, game_id: int):
         game = Database.GameOwner(id=game_id, owner_id=owner.id)
         Database.session.add(game)
         Database.session.commit()
+
+    @staticmethod
+    def get_game_owner(game: Game):
+        owner_id = Database.session.query(Database.GameOwner).filter(Database.GameOwner.id == game.id).first().owner_id
+        return Database.user_by_bot_id(owner_id)
 
     @staticmethod
     def register_channel(channel_id: int) -> NotificationChannel:

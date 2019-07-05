@@ -348,6 +348,12 @@ class InspectGameAction(GameAction, PhasedAction):
             self._answer(update)
             return
 
+        owner = Database.get_game_owner(game)
+        logging.info("Game owner %s", owner.frisbeer_nick)
+
+        if owner:
+            keyboard.add("Edit game", ActionBuilder.copy_to_callback_data(self, action_class=EditGameAction))
+
         if not game.is_in_game(player):
             keyboard.add(Texts.WANT_TO_JOIN, ActionBuilder.copy_to_callback_data(self, ActionTypes.JOIN_GAME), 2, 1)
             if not game.players:
@@ -617,6 +623,58 @@ class LeaveGameAction(GameAction):
                                game_cache, player_cache, location_cache)
 
 
+class EditGameAction(GameAction, PhasedAction):
+    TYPE = ActionTypes.EDIT_GAME
+
+    def run_callback(self, bot: Bot, update: Update, game_cache: GameCache, player_cache: PlayerCache,
+                     location_cache: LocationCache):
+        logging.info("Editing a game")
+        message = update.callback_query.message
+        try:
+            game = self.get_game_or_fail(message, game_cache, ActionBuilder.create(ActionTypes.LIST_PENDING_GAMES))
+        except NotFoundError:
+            logging.error("Game to edit not found")
+            return
+
+        keyboard = BackButtonKeyboard(ActionBuilder.copy_to_callback_data(self, ActionTypes.INSPECT_GAME))
+        location_change = ActionBuilder.copy_action(self, action_class=EditGameLocationAction)
+        keyboard.add("Change location", ActionBuilder.to_callback_data(location_change))
+        message.edit_text(Texts.CHOOSE_ACTION, reply_markup=keyboard.create())
+
+
+class EditGameLocationAction(EditGameAction):
+    TYPE = ActionTypes.EDIT_GAME_LOCATION
+
+    def run_callback(self, bot: Bot, update: Update, game_cache: GameCache, player_cache: PlayerCache,
+                     location_cache: LocationCache):
+        logging.info("Editing a game location")
+        message = update.callback_query.message
+        try:
+            game = self.get_game_or_fail(message, game_cache, ActionBuilder.create(ActionTypes.LIST_PENDING_GAMES))
+        except NotFoundError:
+            logging.error("Game to edit not found")
+            return
+
+        if self.get_phase() == 1:
+            logging.debug("Phase 1, showing options")
+            keyboard = Keyboard()
+            for location in location_cache.get_all():
+                action = ActionBuilder.copy_action(self)
+                action.callback_data = location.id
+                action.increase_phase()
+                keyboard.add(location.name, ActionBuilder.to_callback_data(action))
+            message.edit_text(Texts.ENTER_LOCATION, reply_markup=keyboard.create())
+        else:
+            location = location_cache.get(self.callback_data)
+            logging.debug("Location %s", location)
+            game = game.set_location(location.id)
+            logging.debug("Changed game  %s location to %s", game.name, game.location)
+            game_cache.update(game)
+            self._send_notification("Location changed to {} for game {}".format(location.name, game.name))
+            keyboard = BackButtonKeyboard(ActionBuilder.copy_to_callback_data(self, ActionTypes.INSPECT_GAME))
+            message.edit_text("Location changed", reply_markup=keyboard.create())
+
+
 class CreateTeamsAction(GameAction, PhasedAction):
     TYPE = ActionTypes.CREATE_TEAMS
 
@@ -742,6 +800,8 @@ class ActionBuilder:
         ActionTypes.CREATE_TEAMS: CreateTeamsAction,
         ActionTypes.SUBMIT_SCORE: SubmitScoresAction,
         ActionTypes.CLOSE: CloseAction,
+        ActionTypes.EDIT_GAME: EditGameAction,
+        ActionTypes.EDIT_GAME_LOCATION: EditGameLocationAction,
     }
 
     @staticmethod
@@ -788,19 +848,23 @@ class ActionBuilder:
         return a
 
     @staticmethod
-    def copy_action(action: Action, action_type: ActionTypes = None):
-        if action_type is None:
+    def copy_action(action: Action, action_type: ActionTypes = None, action_class=None):
+        if not action_type and not action_class:
             return action.from_json(key=ActionBuilder._get_key(), json_data=action.to_json())
-        return ActionBuilder._action_mapping[action_type].from_json(key=ActionBuilder._get_key(),
-                                                                    json_data=action.to_json())
+        if action_type:
+            return ActionBuilder._action_mapping[action_type].from_json(key=ActionBuilder._get_key(),
+                                                                        json_data=action.to_json())
+        return action_class.from_json(key=ActionBuilder._get_key(), json_data=action.to_json())
 
     @staticmethod
-    def copy_to_callback_data(action: Action, action_type: ActionTypes = None):
-        if action_type is None:
+    def copy_to_callback_data(action: Action, action_type: ActionTypes = None, action_class=None):
+        if not action_type and not action_class:
             a = action.from_json(key=ActionBuilder._get_key(), json_data=action.to_json())
-        else:
+        elif action_type:
             a = ActionBuilder._action_mapping[action_type].from_json(key=ActionBuilder._get_key(),
                                                                      json_data=action.to_json())
+        else:
+            a = action_class.from_json(key=ActionBuilder._get_key(), json_data=action.to_json())
         return ActionBuilder.to_callback_data(a)
 
     @staticmethod

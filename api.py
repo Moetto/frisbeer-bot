@@ -98,6 +98,10 @@ class API:
         return API._post(games + str(game_id) + "/remove_player/", payload={"id": player_id})
 
     @staticmethod
+    def set_location(game_id, location_id):
+        return API._patch(games + str(game_id) + "/", payload={"location": location_id})
+
+    @staticmethod
     def create_teams(game_id):
         return API._post(games + str(game_id) + "/create_teams/")
 
